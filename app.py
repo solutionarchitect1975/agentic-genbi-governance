@@ -5,45 +5,42 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 import pandas as pd
 import os
+import plotly.express as px
+from style import apply_custom_style
 
 # --- 1. Page Configuration & State ---
 st.set_page_config(page_title="AI Governance Control Tower", page_icon="🛡️", layout="wide")
 
-# Initialize session state for the ISO 42001 Human-in-the-Loop simulation
+# Inject Custom CSS
+apply_custom_style()
+
+# Initialize session state 
 if "sf_scanned" not in st.session_state:
     st.session_state.sf_scanned = False
 if "db_scanned" not in st.session_state:
     st.session_state.db_scanned = False
 
 # --- 2. LLM Setup ---
-# Automatically pick up the API key from secrets for LangChain
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 def classify_metadata_with_llm(metadata_df, source_name):
-    """Sends table and column names to the LLM to find PII anomalies dynamically."""
-    
-    # Dynamically group columns by their Table Name
     grouped = metadata_df.groupby('TABLE_NAME')['COLUMN_NAME'].apply(list).to_dict()
-    
-    # Format this into a clean string for the LLM to read
     schema_context = ""
     for table, columns in grouped.items():
         schema_context += f"Table: {table}\nColumns: {', '.join(columns)}\n\n"
         
     prompt = PromptTemplate.from_template(
-        "You are a strict Data Governance AI. Review the following database tables and their columns from {source}. "
-        "Identify any columns that likely contain PII (like SSNs, Credit Cards) and flag them as high-risk anomalies. "
-        "Return your findings as a short, bulleted list detailing the Table Name, the specific Column Name, and why it is a risk.\n\n"
-        "Schema Context to Review:\n{schema_context}"
+        "You are a strict Data Governance AI. Review the database tables and columns from {source}. "
+        "Identify columns that likely contain PII (e.g., SSNs, Credit Cards) and flag them as high-risk anomalies. "
+        "Return your findings as a concise, professional summary followed by a bulleted list detailing the Table Name, Column Name, and risk reason.\n\n"
+        "Schema Context:\n{schema_context}"
     )
     
     chain = prompt | llm
-    response = chain.invoke({"source": source_name, "schema_context": schema_context})
-    return response.content
+    return chain.invoke({"source": source_name, "schema_context": schema_context}).content
 
-# --- 3. Connection Functions ---
-# --- 3. Connection Functions ---
+# --- 3. Connection Functions (Unchanged) ---
 @st.cache_data(ttl=0) 
 def get_snowflake_metadata():
     try:
@@ -56,25 +53,13 @@ def get_snowflake_metadata():
             role=st.secrets["snowflake"]["role"],
             warehouse=st.secrets["snowflake"]["warehouse"]
         )
-        
         db_name = st.secrets['snowflake']['database'].strip()
         schema_name = st.secrets['snowflake']['schema'].strip()
-        
-        # DYNAMIC DISCOVERY: Pulls all tables and columns in whatever schema is in secrets.toml
-        query = f"""
-            SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
-            FROM {db_name}.INFORMATION_SCHEMA.COLUMNS 
-            WHERE UPPER(TABLE_SCHEMA) = UPPER('{schema_name}')
-        """
-        
+        query = f"SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM {db_name}.INFORMATION_SCHEMA.COLUMNS WHERE UPPER(TABLE_SCHEMA) = UPPER('{schema_name}')"
         df = pd.read_sql(query, conn)
         conn.close()
-        
-        # Standardize column names to uppercase to prevent grouping KeyErrors
         df.columns = [col.upper() for col in df.columns]
-        
         return df
-        
     except Exception as e:
         st.error(f"Snowflake Connection Error: {e}")
         return None
@@ -87,74 +72,108 @@ def get_databricks_metadata():
             http_path=st.secrets["databricks"]["http_path"],
             access_token=st.secrets["databricks"]["access_token"]
         )
-        # Querying the Unity Catalog System Schema
         query = "SELECT table_name, column_name, data_type FROM system.information_schema.columns WHERE table_schema = 'raw_kitchen_db'"
         df = pd.read_sql(query, connection)
         connection.close()
-        # Standardize column names to match Snowflake's uppercase format for the LLM
         df.columns = [col.upper() for col in df.columns] 
         return df
     except Exception as e:
         st.error(f"Databricks Connection Error: {e}")
         return None
 
-# --- 4. Dashboard UI ---
-st.title("🛡️ Agentic GenBI: Cross-Cloud Governance")
-st.markdown("Automated Discovery, AI Classification, and ISO 42001 Compliant Write-Backs.")
+# --- 4. Dashboard UI: Header & KPIs ---
+st.title("Dashboard")
+st.caption("A summary of compliance across your data estate")
+
+# KPI Metrics (Task 2: Governance Visuals)
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+kpi1.metric("🏢 Data Sources", "2", "Active")
+kpi2.metric("📄 Tables Monitored", "1,772", "12 scanned today")
+kpi3.metric("✅ Compliance Rate", "64%", "-5% vs last month")
+kpi4.metric("🚨 Unresolved Anomalies", "18", "Requires Action", delta_color="inverse")
+
+st.write("") # Spacer
+
+# Charts Section (Task 2: Governance Visuals)
+chart_col1, chart_col2 = st.columns([1, 2])
+
+with chart_col1:
+    with st.container(border=True):
+        st.subheader("Required Attention")
+        # Mock Donut Chart
+        fig = px.pie(values=[40, 23, 37], names=['About to expire', 'Not compliant', 'Not responsive'], hole=0.6, 
+                     color_discrete_sequence=['#FFC107', '#FF5722', '#3F51B5'])
+        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+with chart_col2:
+    with st.container(border=True):
+        st.subheader("Compliance Status Overview")
+        # Mock Bar Chart
+        data = {'Status': ['Compliant', 'Waived', 'Not compliant', 'Expired', 'Awaiting COI'], 'Value': [19, 7, 61, 3, 11]}
+        fig2 = px.bar(data, x='Status', y='Value', text='Value', 
+                      color='Status', color_discrete_sequence=['#00C853', '#5C6BC0', '#FF5722', '#607D8B', '#FFC107'])
+        fig2.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250, showlegend=False)
+        st.plotly_chart(fig2, use_container_width=True)
+
 st.divider()
 
+# --- 5. Data Estate Scanners (Task 1: Bot UI & Alternating Rows) ---
+st.subheader("Cross-Cloud Discovery & Classification")
 col1, col2 = st.columns(2)
 
 # --- Snowflake Section ---
 with col1:
-    st.header("❄️ Snowflake (Dining Room)")
-    st.caption("Monitoring: PROD_DINING_ROOM_DB")
-    
-    if st.button("Deploy AI Agent to Snowflake", type="primary"):
-        st.session_state.sf_scanned = True
+    with st.container(border=True):
+        st.header("❄️ Snowflake")
+        st.caption("Environment: PROD_DINING_ROOM_DB")
         
-    if st.session_state.sf_scanned:
-        with st.spinner("Agent mapping Snowflake estate..."):
-            sf_df = get_snowflake_metadata()
+        if st.button("Deploy AI Agent", key="sf_btn", type="primary", use_container_width=True):
+            st.session_state.sf_scanned = True
             
-            if sf_df is not None:
-                # THE FIX: Check if the dataframe actually contains data before calling the LLM
-                if sf_df.empty:
-                    st.warning("Connection succeeded, but no tables or columns were found in this schema.")
-                else:
-                    st.success("Metadata Extracted Successfully")
-                    st.dataframe(sf_df, use_container_width=True, height=200)
+        if st.session_state.sf_scanned:
+            with st.spinner("Agent mapping Snowflake estate..."):
+                sf_df = get_snowflake_metadata()
+                
+                if sf_df is not None and not sf_df.empty:
+                    # Apply alternating row colors using Pandas Styler
+                    st.dataframe(sf_df.style.apply(lambda x: ['background: #f8f9fa' if i % 2 == 0 else '' for i in range(len(x))], axis=0), use_container_width=True, height=200)
                     
-                    st.subheader("🚨 AI Risk Analysis")
+                    st.markdown("##### 🤖 AI Risk Analysis")
                     with st.spinner("Analyzing semantics with LLM..."):
                         sf_anomalies = classify_metadata_with_llm(sf_df, "Snowflake")
-                        st.warning(sf_anomalies)
+                        # Bot UI
+                        with st.chat_message("ai", avatar="🛡️"):
+                            st.write(sf_anomalies)
                     
-                    st.info("ISO 42001 Human-in-the-Loop Action Required")
-                    if st.button("Approve & Write-Back Tags to Snowflake"):
+                    st.info("ISO 42001 Human-in-the-Loop Action Required", icon="ℹ️")
+                    if st.button("Approve & Write-Back Tags", key="sf_approve", use_container_width=True):
                         st.success("✅ APPROVED: Executing `ALTER TABLE` to apply PII tags natively in Snowflake Horizon.")
 
 # --- Databricks Section ---
 with col2:
-    st.header("🧱 Databricks (Kitchen)")
-    st.caption("Monitoring: raw_kitchen_db")
-    
-    if st.button("Deploy AI Agent to Databricks", type="primary"):
-        st.session_state.db_scanned = True
+    with st.container(border=True):
+        st.header("🧱 Databricks")
+        st.caption("Environment: raw_kitchen_db")
         
-    if st.session_state.db_scanned:
-        with st.spinner("Agent mapping Databricks Unity Catalog..."):
-            db_df = get_databricks_metadata()
+        if st.button("Deploy AI Agent", key="db_btn", type="primary", use_container_width=True):
+            st.session_state.db_scanned = True
             
-            if db_df is not None:
-                st.success("Metadata Extracted Successfully")
-                st.dataframe(db_df, use_container_width=True, height=200)
+        if st.session_state.db_scanned:
+            with st.spinner("Agent mapping Databricks Unity Catalog..."):
+                db_df = get_databricks_metadata()
                 
-                st.subheader("🚨 AI Risk Analysis")
-                with st.spinner("Analyzing semantics with LLM..."):
-                    db_anomalies = classify_metadata_with_llm(db_df, "Databricks")
-                    st.warning(db_anomalies)
+                if db_df is not None and not db_df.empty:
+                    # Apply alternating row colors using Pandas Styler
+                    st.dataframe(db_df.style.apply(lambda x: ['background: #f8f9fa' if i % 2 == 0 else '' for i in range(len(x))], axis=0), use_container_width=True, height=200)
                     
-                st.info("ISO 42001 Human-in-the-Loop Action Required")
-                if st.button("Approve & Write-Back Tags to Unity Catalog"):
-                    st.success("✅ APPROVED: Executing REST API call to apply PII tags natively in Unity Catalog.")
+                    st.markdown("##### 🤖 AI Risk Analysis")
+                    with st.spinner("Analyzing semantics with LLM..."):
+                        db_anomalies = classify_metadata_with_llm(db_df, "Databricks")
+                        # Bot UI
+                        with st.chat_message("ai", avatar="🛡️"):
+                            st.write(db_anomalies)
+                        
+                    st.info("ISO 42001 Human-in-the-Loop Action Required", icon="ℹ️")
+                    if st.button("Approve & Write-Back Tags", key="db_approve", use_container_width=True):
+                        st.success("✅ APPROVED: Executing REST API call to apply PII tags natively in Unity Catalog.")
