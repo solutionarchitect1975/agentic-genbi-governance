@@ -1,0 +1,6 @@
+streamlit
+snowflake-connector-python
+databricks-sql-connector
+langchain
+langchain-openai
+pandas
