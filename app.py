@@ -8,6 +8,18 @@ import os
 import plotly.express as px
 from style import apply_custom_style
 
+# --- NEW: Header Bar Component ---
+st.markdown("""
+    <div class="main-header">
+        <div style="display: flex; align-items: center;">
+            <span style="font-size: 24px; font-weight: 800; letter-spacing: -1px;">🛡️ AGENTIC GENBI</span>
+            <span style="margin-left: 20px; opacity: 0.6; font-weight: 400;">Governance Control Tower</span>
+        </div>
+        <div style="font-size: 14px; opacity: 0.8;">
+            v2.0 Beta | Folsom, CA HQ
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 # --- 1. Page Configuration & State ---
 st.set_page_config(page_title="AI Governance Control Tower", page_icon="🛡️", layout="wide")
 
@@ -96,6 +108,36 @@ st.write("") # Spacer
 
 # Charts Section (Task 2: Governance Visuals)
 chart_col1, chart_col2 = st.columns([1, 2])
+
+# Helper function to standardize chart styling
+def update_chart_theme(fig):
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#1E293B'),
+        margin=dict(t=10, b=10, l=10, r=10),
+        template='plotly_white' # Forces white/transparent theme
+    )
+    return fig
+
+with chart_col1:
+    with st.container(border=True):
+        st.subheader("Required Attention")
+        fig = px.pie(values=[40, 23, 37], names=['Expiring', 'Non-Compliant', 'No Response'], 
+                     hole=0.6, color_discrete_sequence=['#F59E0B', '#EF4444', '#6366F1'])
+        st.plotly_chart(update_chart_theme(fig), use_container_width=True)
+
+with chart_col2:
+    with st.container(border=True):
+        st.subheader("Compliance Status Overview")
+        data = {'Status': ['Compliant', 'Waived', 'Non-compliant', 'Expired', 'Awaiting'], 'Value': [19, 7, 61, 3, 11]}
+        fig2 = px.bar(data, x='Status', y='Value', color='Status', 
+                      color_discrete_sequence=['#10B981', '#8B5CF6', '#EF4444', '#94A3B8', '#F59E0B'])
+        st.plotly_chart(update_chart_theme(fig2), use_container_width=True)
+
+st.divider()
+# --- Discovery Section (With Clean AI Results) ---
+st.subheader("Cross-Cloud Discovery")
 
 with chart_col1:
     with st.container(border=True):

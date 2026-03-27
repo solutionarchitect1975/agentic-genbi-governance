@@ -3,54 +3,53 @@ import streamlit as st
 def apply_custom_style():
     st.markdown("""
         <style>
-        /* Force high contrast for all headers and body text */
-        html, body, [class*="st-"] {
-            color: #1E293B; 
+        /* 1. The Header Bar (Fixes "Headless" feel) */
+        .main-header {
+            background-color: #0F172A;
+            padding: 1.5rem 2rem;
+            margin: -6rem -5rem 2rem -5rem; /* Forces header to span full width */
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         
-        h1, h2, h3, h4, h5, h6 {
-            color: #0F172A !important;
-            font-weight: 700 !important;
-        }
-
-        .stApp {
-            background-color: #F8FAFC;
-        }
+        /* 2. Page & Text Basics */
+        .stApp { background-color: #F8FAFC; }
         
-        /* Card Styling: White background with a subtle border */
-        div[data-testid="stMetric"], div.stVerticalBlock > div > div[style*="border"] {
+        h1, h2, h3 { color: #1E293B !important; font-weight: 700 !important; }
+        
+        /* 3. The "Bot UI" & Result Container Fix */
+        div[data-testid="stChatMessage"] {
             background-color: #FFFFFF !important;
             border: 1px solid #E2E8F0 !important;
             border-radius: 12px !important;
-            padding: 20px !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+            color: #1E293B !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+        }
+        
+        /* Ensures the text inside the AI result is readable */
+        div[data-testid="stChatMessage"] p, div[data-testid="stChatMessage"] li {
+            color: #334155 !important;
         }
 
-        /* Fixing Metric Labels (making them dark) */
-        [data-testid="stMetricLabel"] {
-            color: #64748B !important;
-            font-size: 0.9rem !important;
-        }
-
-        /* Fix the Sidebar color if you use one */
-        [data-testid="stSidebar"] {
-            background-color: #FFFFFF;
-            border-right: 1px solid #E2E8F0;
-        }
-
-        /* Clean up buttons: Use a professional Blue instead of Red */
+        /* 4. Button Refinement (No more red) */
         .stButton>button {
             background-color: #2563EB !important;
             color: white !important;
             border-radius: 8px !important;
             border: none !important;
+            width: 100%;
             font-weight: 600 !important;
-            transition: all 0.2s ease;
         }
         
-        .stButton>button:hover {
-            background-color: #1D4ED8 !important;
-            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4) !important;
+        /* 5. Metrics styling */
+        [data-testid="stMetric"] {
+            background-color: white !important;
+            border: 1px solid #E2E8F0 !important;
+            padding: 15px !important;
+            border-radius: 12px !important;
         }
         </style>
     """, unsafe_allow_html=True)
