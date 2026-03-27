@@ -8,6 +8,9 @@ import os
 import plotly.express as px
 from style import apply_custom_style
 
+st.set_page_config(page_title="GenBI Control Tower", page_icon="🛡️", layout="wide")
+apply_custom_style()
+
 # --- NEW: Header Bar Component ---
 st.markdown("""
     <div class="main-header">
@@ -20,11 +23,6 @@ st.markdown("""
         </div>
     </div>
 """, unsafe_allow_html=True)
-# --- 1. Page Configuration & State ---
-st.set_page_config(page_title="AI Governance Control Tower", page_icon="🛡️", layout="wide")
-
-# Inject Custom CSS
-apply_custom_style()
 
 # Initialize session state 
 if "sf_scanned" not in st.session_state:
@@ -135,33 +133,6 @@ with chart_col2:
                       color_discrete_sequence=['#10B981', '#8B5CF6', '#EF4444', '#94A3B8', '#F59E0B'])
         st.plotly_chart(update_chart_theme(fig2), use_container_width=True)
 
-st.divider()
-# --- Discovery Section (With Clean AI Results) ---
-st.subheader("Cross-Cloud Discovery")
-
-# --- Inside Task 2 Visuals ---
-
-# Donut Chart Fix
-fig.update_layout(
-    margin=dict(t=10, b=10, l=10, r=10),
-    height=250,
-    showlegend=False,
-    paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
-    plot_bgcolor='rgba(0,0,0,0)',   # Transparent background
-    font=dict(color='#1E293B')      # Darker font for percentages
-)
-
-# Bar Chart Fix
-fig2.update_layout(
-    margin=dict(t=10, b=10, l=10, r=10),
-    height=250,
-    showlegend=False,
-    paper_bgcolor='rgba(0,0,0,0)', 
-    plot_bgcolor='rgba(0,0,0,0)',
-    xaxis=dict(showgrid=False, color='#1E293B'),
-    yaxis=dict(showgrid=True, gridcolor='#E2E8F0', color='#1E293B'),
-    font=dict(color='#1E293B')
-)
 st.divider()
 
 # --- 5. Data Estate Scanners (Task 1: Bot UI & Alternating Rows) ---
