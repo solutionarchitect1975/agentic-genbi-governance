@@ -139,24 +139,6 @@ st.divider()
 # --- Discovery Section (With Clean AI Results) ---
 st.subheader("Cross-Cloud Discovery")
 
-with chart_col1:
-    with st.container(border=True):
-        st.subheader("Required Attention")
-        # Mock Donut Chart
-        fig = px.pie(values=[40, 23, 37], names=['About to expire', 'Not compliant', 'Not responsive'], hole=0.6, 
-                     color_discrete_sequence=['#FFC107', '#FF5722', '#3F51B5'])
-        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250, showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-with chart_col2:
-    with st.container(border=True):
-        st.subheader("Compliance Status Overview")
-        # Mock Bar Chart
-        data = {'Status': ['Compliant', 'Waived', 'Not compliant', 'Expired', 'Awaiting COI'], 'Value': [19, 7, 61, 3, 11]}
-        fig2 = px.bar(data, x='Status', y='Value', text='Value', 
-                      color='Status', color_discrete_sequence=['#00C853', '#5C6BC0', '#FF5722', '#607D8B', '#FFC107'])
-        fig2.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250, showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
 # --- Inside Task 2 Visuals ---
 
 # Donut Chart Fix
