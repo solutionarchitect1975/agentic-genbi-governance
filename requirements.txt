@@ -4,3 +4,4 @@ databricks-sql-connector
 langchain
 langchain-openai
 pandas
+plotly
