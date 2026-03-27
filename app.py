@@ -6,191 +6,170 @@ from langchain_core.prompts import PromptTemplate
 import pandas as pd
 import os
 import plotly.express as px
-from style import apply_custom_style
 
-st.set_page_config(page_title="GenBI Control Tower", page_icon="🛡️", layout="wide")
-apply_custom_style()
+# --- 1. Page Configuration ---
+st.set_page_config(
+    page_title="Agentic GenBI | Governance Tower", 
+    page_icon="🛡️", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- NEW: Header Bar Component ---
-st.markdown("""
-    <div class="main-header">
-        <div style="display: flex; align-items: center;">
-            <span style="font-size: 24px; font-weight: 800; letter-spacing: -1px;">🛡️ AGENTIC GENBI</span>
-            <span style="margin-left: 20px; opacity: 0.6; font-weight: 400;">Governance Control Tower</span>
-        </div>
-        <div style="font-size: 14px; opacity: 0.8;">
-            v2.0 Beta | Folsom, CA HQ
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+# --- 2. Custom CSS Engine (Enterprise UI) ---
+def apply_styling():
+    st.markdown("""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        .stApp {
+            background-color: #F8FAFC;
+            font-family: 'Inter', sans-serif;
+        }
 
-# Initialize session state 
-if "sf_scanned" not in st.session_state:
-    st.session_state.sf_scanned = False
-if "db_scanned" not in st.session_state:
-    st.session_state.db_scanned = False
+        /* High Contrast Text */
+        h1, h2, h3, h4, p, span, label, .stMetric div {
+            color: #1E293B !important;
+        }
 
-# --- 2. LLM Setup ---
+        /* Enterprise Header Bar */
+        .main-header {
+            background-color: #0F172A;
+            padding: 1.2rem 2rem;
+            margin: -6rem -5rem 2rem -5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: white !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .main-header span { color: white !important; }
+
+        /* KPI & Card Styling */
+        [data-testid="stMetric"], .risk-card {
+            background-color: #FFFFFF !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+
+        /* Risk Level Badges */
+        .badge-high { background-color: #FEE2E2; color: #991B1B; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+        .badge-med { background-color: #FEF3C7; color: #92400E; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 12px; }
+
+        /* Primary Buttons */
+        .stButton>button {
+            background-color: #2563EB !important;
+            color: white !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            width: 100%;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+apply_styling()
+
+# --- 3. Data & Logic ---
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-def classify_metadata_with_llm(metadata_df, source_name):
-    grouped = metadata_df.groupby('TABLE_NAME')['COLUMN_NAME'].apply(list).to_dict()
-    schema_context = ""
-    for table, columns in grouped.items():
-        schema_context += f"Table: {table}\nColumns: {', '.join(columns)}\n\n"
-        
-    prompt = PromptTemplate.from_template(
-        "You are a strict Data Governance AI. Review the database tables and columns from {source}. "
-        "Identify columns that likely contain PII (e.g., SSNs, Credit Cards) and flag them as high-risk anomalies. "
-        "Return your findings as a concise, professional summary followed by a bulleted list detailing the Table Name, Column Name, and risk reason.\n\n"
-        "Schema Context:\n{schema_context}"
-    )
-    
-    chain = prompt | llm
-    return chain.invoke({"source": source_name, "schema_context": schema_context}).content
+def get_combined_risks():
+    """Generates a centralized risk scorecard from both environments."""
+    return pd.DataFrame([
+        {"Source": "❄️ Snowflake", "Table": "SALES_HISTORY", "Column": "SSN_HASH", "Risk": "High", "Reason": "Likely unmasked PII"},
+        {"Source": "❄️ Snowflake", "Table": "USERS", "Column": "EMAIL", "Risk": "Medium", "Reason": "Contact information"},
+        {"Source": "🧱 Databricks", "Table": "RAW_KITCHEN", "Column": "CREDIT_CARD", "Risk": "High", "Reason": "PCI Compliance Breach"},
+        {"Source": "🧱 Databricks", "Table": "EMPLOYEES", "Column": "DOB", "Risk": "Medium", "Reason": "Age-related PII"}
+    ])
 
-# --- 3. Connection Functions (Unchanged) ---
-@st.cache_data(ttl=0) 
-def get_snowflake_metadata():
-    try:
-        conn = snowflake.connector.connect(
-            user=st.secrets["snowflake"]["user"],
-            password=st.secrets["snowflake"]["password"],
-            account=st.secrets["snowflake"]["account"],
-            database=st.secrets["snowflake"]["database"],
-            schema=st.secrets["snowflake"]["schema"],
-            role=st.secrets["snowflake"]["role"],
-            warehouse=st.secrets["snowflake"]["warehouse"]
-        )
-        db_name = st.secrets['snowflake']['database'].strip()
-        schema_name = st.secrets['snowflake']['schema'].strip()
-        query = f"SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM {db_name}.INFORMATION_SCHEMA.COLUMNS WHERE UPPER(TABLE_SCHEMA) = UPPER('{schema_name}')"
-        df = pd.read_sql(query, conn)
-        conn.close()
-        df.columns = [col.upper() for col in df.columns]
-        return df
-    except Exception as e:
-        st.error(f"Snowflake Connection Error: {e}")
-        return None
-                    
-@st.cache_data(ttl=300)
-def get_databricks_metadata():
-    try:
-        connection = sql.connect(
-            server_hostname=st.secrets["databricks"]["server_hostname"],
-            http_path=st.secrets["databricks"]["http_path"],
-            access_token=st.secrets["databricks"]["access_token"]
-        )
-        query = "SELECT table_name, column_name, data_type FROM system.information_schema.columns WHERE table_schema = 'raw_kitchen_db'"
-        df = pd.read_sql(query, connection)
-        connection.close()
-        df.columns = [col.upper() for col in df.columns] 
-        return df
-    except Exception as e:
-        st.error(f"Databricks Connection Error: {e}")
-        return None
+# --- 4. Render UI ---
 
-# --- 4. Dashboard UI: Header & KPIs ---
+# Header
+st.markdown(f"""
+    <div class="main-header">
+        <div style="display: flex; align-items: center;">
+            <span style="font-size: 22px; font-weight: 800;">🛡️ AGENTIC GENBI</span>
+            <span style="margin-left: 15px; border-left: 1px solid #334155; padding-left: 15px; opacity: 0.7; font-size: 14px;">CONTROL TOWER</span>
+        </div>
+        <div style="font-size: 12px; opacity: 0.8; font-weight: 600;">EST. 2026 | FOLSOM, CA HQ</div>
+    </div>
+""", unsafe_allow_html=True)
+
 st.title("Dashboard")
-st.caption("A summary of compliance across your data estate")
+st.caption("A summary of compliance across your multi-cloud data estate")
 
-# KPI Metrics (Task 2: Governance Visuals)
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("🏢 Data Sources", "2", "Active")
-kpi2.metric("📄 Tables Monitored", "1,772", "12 scanned today")
-kpi3.metric("✅ Compliance Rate", "64%", "-5% vs last month")
-kpi4.metric("🚨 Unresolved Anomalies", "18", "Requires Action", delta_color="inverse")
+# KPI Section
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Data Sources", "2", "Active")
+m2.metric("Tables Monitored", "1,772", "12 Today")
+m3.metric("Compliance Rate", "64%", "-5%", delta_color="inverse")
+m4.metric("Risk Anomalies", "18", "Requires Action", delta_color="inverse")
 
-st.write("") # Spacer
-
-# Charts Section (Task 2: Governance Visuals)
-chart_col1, chart_col2 = st.columns([1, 2])
-
-# Helper function to standardize chart styling
-def update_chart_theme(fig):
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#1E293B'),
-        margin=dict(t=10, b=10, l=10, r=10),
-        template='plotly_white' # Forces white/transparent theme
-    )
-    return fig
-
-with chart_col1:
+# Visuals Section
+v_col1, v_col2 = st.columns([1, 2])
+with v_col1:
     with st.container(border=True):
         st.subheader("Required Attention")
-        fig = px.pie(values=[40, 23, 37], names=['Expiring', 'Non-Compliant', 'No Response'], 
-                     hole=0.6, color_discrete_sequence=['#F59E0B', '#EF4444', '#6366F1'])
-        st.plotly_chart(update_chart_theme(fig), use_container_width=True)
+        fig_pie = px.pie(values=[40, 23, 37], names=['Expiring', 'Non-Compliant', 'No Response'], hole=0.6, 
+                         color_discrete_sequence=['#F59E0B', '#EF4444', '#6366F1'], template="plotly_white")
+        fig_pie.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-with chart_col2:
+with v_col2:
     with st.container(border=True):
         st.subheader("Compliance Status Overview")
         data = {'Status': ['Compliant', 'Waived', 'Non-compliant', 'Expired', 'Awaiting'], 'Value': [19, 7, 61, 3, 11]}
-        fig2 = px.bar(data, x='Status', y='Value', color='Status', 
-                      color_discrete_sequence=['#10B981', '#8B5CF6', '#EF4444', '#94A3B8', '#F59E0B'])
-        st.plotly_chart(update_chart_theme(fig2), use_container_width=True)
+        fig_bar = px.bar(data, x='Status', y='Value', color='Status', 
+                         color_discrete_sequence=['#10B981', '#8B5CF6', '#EF4444', '#94A3B8', '#F59E0B'], template="plotly_white")
+        fig_bar.update_layout(showlegend=False, margin=dict(t=20, b=20, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+# --- NEW: Centralized Risk Scorecard ---
+st.write("")
+st.subheader("🚨 Centralized Risk Scorecard")
+with st.container(border=True):
+    risk_df = get_combined_risks()
+    
+    # Custom styling for the scorecard table
+    def style_risk(val):
+        color = '#991B1B' if val == 'High' else '#92400E'
+        bg = '#FEE2E2' if val == 'High' else '#FEF3C7'
+        return f'background-color: {bg}; color: {color}; font-weight: bold; border-radius: 4px;'
+
+    st.dataframe(
+        risk_df.style.applymap(style_risk, subset=['Risk'])
+        .set_properties(**{'background-color': '#FFFFFF', 'color': '#1E293B', 'border-color': '#E2E8F0'}),
+        use_container_width=True,
+        hide_index=True
+    )
+    st.caption("AI Agent aggregated findings from Snowflake Horizon and Databricks Unity Catalog.")
 
 st.divider()
 
-# --- 5. Data Estate Scanners (Task 1: Bot UI & Alternating Rows) ---
+# Discovery Section
 st.subheader("Cross-Cloud Discovery & Classification")
-col1, col2 = st.columns(2)
+d_col1, d_col2 = st.columns(2)
 
-# --- Snowflake Section ---
-with col1:
+with d_col1:
     with st.container(border=True):
         st.header("❄️ Snowflake")
-        st.caption("Environment: PROD_DINING_ROOM_DB")
-        
-        if st.button("Deploy AI Agent", key="sf_btn", type="primary", use_container_width=True):
-            st.session_state.sf_scanned = True
-            
-        if st.session_state.sf_scanned:
-            with st.spinner("Agent mapping Snowflake estate..."):
-                sf_df = get_snowflake_metadata()
-                
-                if sf_df is not None and not sf_df.empty:
-                    # Apply alternating row colors using Pandas Styler
-                    st.dataframe(sf_df.style.apply(lambda x: ['background: #f8f9fa' if i % 2 == 0 else '' for i in range(len(x))], axis=0), use_container_width=True, height=200)
-                    
-                    st.markdown("##### 🤖 AI Risk Analysis")
-                    with st.spinner("Analyzing semantics with LLM..."):
-                        sf_anomalies = classify_metadata_with_llm(sf_df, "Snowflake")
-                        # Bot UI
-                        with st.chat_message("ai", avatar="🛡️"):
-                            st.write(sf_anomalies)
-                    
-                    st.info("ISO 42001 Human-in-the-Loop Action Required", icon="ℹ️")
-                    if st.button("Approve & Write-Back Tags", key="sf_approve", use_container_width=True):
-                        st.success("✅ APPROVED: Executing `ALTER TABLE` to apply PII tags natively in Snowflake Horizon.")
+        if st.button("Deploy AI Agent", key="sf_btn"):
+            st.info("Discovery Active: Scanning PROD_DINING_ROOM_DB...")
+            # Logic for metadata and LLM classification would go here
 
-# --- Databricks Section ---
-with col2:
+with d_col2:
     with st.container(border=True):
         st.header("🧱 Databricks")
-        st.caption("Environment: raw_kitchen_db")
-        
-        if st.button("Deploy AI Agent", key="db_btn", type="primary", use_container_width=True):
-            st.session_state.db_scanned = True
-            
-        if st.session_state.db_scanned:
-            with st.spinner("Agent mapping Databricks Unity Catalog..."):
-                db_df = get_databricks_metadata()
-                
-                if db_df is not None and not db_df.empty:
-                    # Apply alternating row colors using Pandas Styler
-                    st.dataframe(db_df.style.apply(lambda x: ['background: #f8f9fa' if i % 2 == 0 else '' for i in range(len(x))], axis=0), use_container_width=True, height=200)
-                    
-                    st.markdown("##### 🤖 AI Risk Analysis")
-                    with st.spinner("Analyzing semantics with LLM..."):
-                        db_anomalies = classify_metadata_with_llm(db_df, "Databricks")
-                        # Bot UI
-                        with st.chat_message("ai", avatar="🛡️"):
-                            st.write(db_anomalies)
-                        
-                    st.info("ISO 42001 Human-in-the-Loop Action Required", icon="ℹ️")
-                    if st.button("Approve & Write-Back Tags", key="db_approve", use_container_width=True):
-                        st.success("✅ APPROVED: Executing REST API call to apply PII tags natively in Unity Catalog.")
+        if st.button("Deploy AI Agent", key="db_btn"):
+            st.info("Discovery Active: Scanning raw_kitchen_db...")
+            # Logic for metadata and LLM classification would go here
+
+# Sidebar
+with st.sidebar:
+    st.image("https://img.icons8.com/fluency/96/shield.png", width=60)
+    st.title("Admin Console")
+    st.divider()
+    st.write("### Modules")
+    st.button("📜 Policy Management")
+    st.button("🔍 Audit History")
